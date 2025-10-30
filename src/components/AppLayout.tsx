@@ -4,7 +4,6 @@ import {
   Typography,
   Box,
   Container,
-  IconButton,
   Button,
 } from "@mui/material";
 import SecurityIcon from "@mui/icons-material/Security";
@@ -21,8 +20,10 @@ export default function AppLayout({ children }: Props) {
     <Box
       sx={{
         display: "flex",
+        flexDirection: "column", // stack header above content
         minHeight: "100vh",
         bgcolor: "background.default",
+        overflowX: "hidden", // avoid horizontal scrollbar from rounding/padding
       }}
     >
       <AppBar position="sticky" elevation={1} color="default">
@@ -60,7 +61,11 @@ export default function AppLayout({ children }: Props) {
           </Button>
         </Toolbar>
       </AppBar>
-      <Container maxWidth="xl" sx={{ py: 3, flex: 1 }}>
+
+      <Container
+        maxWidth="lg" // change to "xl" if you want wider content
+        sx={{ py: 3, flex: 1, width: "100%" }}
+      >
         {children}
       </Container>
     </Box>
