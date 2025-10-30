@@ -1,73 +1,43 @@
-# React + TypeScript + Vite
+# Security Vulnerability Dashboard (React + TS + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This app visualizes security vulnerabilities from a very large JSON file (300MB+).  
+Client-only solution: no server-side API.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- React + TypeScript + Vite
+- Material UI (UI)
+- React Router (navigation)
+- React Query (async data management)
+- Recharts (charts)
+- Dexie (IndexedDB caching)
+- oboe (streaming JSON parsing in the browser)
+- Comlink (Web Worker communication)
+- @tanstack/react-virtual (virtualized lists)
 
-## React Compiler
+## Get started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+# Node 18+ recommended (20+ preferred)
+npm create vite@latest security-vuln-dashboard -- --template react-ts
+cd security-vuln-dashboard
 
-## Expanding the ESLint configuration
+# Dependencies
+npm i react-router-dom @mui/material @mui/icons-material @emotion/react @emotion/styled @tanstack/react-query @tanstack/react-virtual recharts dexie oboe comlink
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+# Dev tooling (optional)
+npm i -D eslint prettier @types/node
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Run
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open http://localhost:5173
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Next steps (guided)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+1. Data loading strategy for 300MB+ JSON (streaming + Web Worker + IndexedDB cache).
+2. Define data model/types and flattening utilities (extract vulnerabilities array from nested structure).
+3. Implement virtualization, filters (including `kaiStatus` logic), and charts.
+4. Add "Analysis" and "AI Analysis" buttons that toggle the `kaiStatus` filters.
+5. Comparison, export, user preferences, and advanced visualizations.
