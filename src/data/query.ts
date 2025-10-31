@@ -174,3 +174,45 @@ export async function getTrendByMonth(
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([month, count]) => ({ month, count }));
 }
+
+export async function getByCve(cve: string) {
+  return db.vulnerabilities.get(cve);
+}
+
+/**
+ * Top N after filters (heaviest to easiest). For small N this is fine.
+ * If the dataset is extremely large and N grows, consider index-assisted queries.
+ */
+export async function getTopAfterFilters(
+  filters: KaiStatusFilters,
+  limit = 10
+) {
+  const pred = buildKaiPredicate(filters);
+  const arr: Vulnerability[] = [];
+  await db.vulnerabilities.filter(pred).each((v) => arr.push(v));
+  // Sort: severity (critical > high > medium > low > unknown), then CVSS desc, then most recent
+  const rank = (s?: string) => {
+    switch ((s || "").toLowerCase()) {
+      case "critical":
+        return 5;
+      case "high":
+        return 4;
+      case "medium":
+        return 3;
+      case "low":
+        return 2;
+      default:
+        return 1;
+    }
+  };
+  arr.sort((a, b) => {
+    const r = rank(b.severity) - rank(a.severity);
+    if (r !== 0) return r;
+    const cv = (b.cvss ?? -1) - (a.cvss ?? -1);
+    if (cv !== 0) return cv;
+    const ta = new Date(a.published ?? 0).getTime();
+    const tb = new Date(b.published ?? 0).getTime();
+    return tb - ta;
+  });
+  return arr.slice(0, limit);
+}

@@ -1,5 +1,6 @@
-import { Box, Chip, Link, Stack, Typography } from "@mui/material";
+import { Box, Chip, Link, Stack, Typography, Checkbox } from "@mui/material";
 import type { Vulnerability } from "../types/vuln";
+import { useSelection } from "../contexts/SelectionContext";
 
 function severityColor(sev?: string) {
   switch ((sev || "").toLowerCase()) {
@@ -17,13 +18,25 @@ function severityColor(sev?: string) {
 }
 
 export default function VulnRow({ v }: { v: Vulnerability }) {
+  const { selected, toggle } = useSelection();
+  const isSelected = selected.includes(v.cve);
+
   return (
     <Stack
       direction="row"
       spacing={2}
       alignItems="center"
-      sx={{ px: 2, py: 1.25 }}
+      sx={{
+        px: 2,
+        py: 1.25,
+        bgcolor: isSelected ? "action.hover" : "transparent",
+      }}
     >
+      <Checkbox
+        size="small"
+        checked={isSelected}
+        onChange={() => toggle(v.cve)}
+      />
       <Box sx={{ minWidth: 180 }}>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
           {v.cve}

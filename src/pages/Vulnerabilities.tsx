@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Box,
   Paper,
@@ -20,23 +20,18 @@ import { useVirtualVulns } from "../hooks/useVirtualVulns";
 import type { SortKey } from "../data/query";
 import VulnRow from "../components/VulnRow";
 import { exportFilteredCSV, exportFilteredJSON } from "../utils/export";
+import { SelectionProvider, useSelection } from "../contexts/SelectionContext";
+import CompareDrawer from "../components/CompareDrawer";
 
-/**
- * Virtualized listing wired to FiltersContext.
- * - ensureRow lazily populates the page that contains the visible row
- * - export uses the same predicate as the list/dashboard
- */
-export default function Vulnerabilities() {
+function ListArea() {
   const { filters } = useFilters();
   const [sort]: [SortKey] = useMemo(() => ["published-desc"], []);
-
   const parentRef = useRef<HTMLDivElement | null>(null);
   const { total, ensureRow, getRow } = useVirtualVulns({
     pageSize: 100,
     filters,
     sort,
   });
-
   const rowVirtualizer = useVirtualizer({
     count: total,
     getScrollElement: () => parentRef.current,
@@ -44,50 +39,16 @@ export default function Vulnerabilities() {
     overscan: 10,
   });
 
+  const { canCompare } = useSelection();
+  const [open, setOpen] = useState(false);
+
+  // Open drawer as soon as two items are selected
+  useMemo(() => {
+    if (canCompare) setOpen(true);
+  }, [canCompare]);
+
   return (
-    <Box>
-      <Typography variant="h5" gutterBottom>
-        Vulnerabilities
-      </Typography>
-
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Stack
-          direction={{ xs: "column", md: "row" }}
-          spacing={2}
-          alignItems={{ xs: "stretch", md: "center" }}
-          justifyContent="space-between"
-        >
-          <FilterBar />
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel id="sort-label">Sort</InputLabel>
-            <Select labelId="sort-label" label="Sort" value={sort} readOnly>
-              <MenuItem value="published-desc">Published (Newest)</MenuItem>
-              <MenuItem value="published-asc">Published (Oldest)</MenuItem>
-            </Select>
-          </FormControl>
-          <Stack direction="row" spacing={1}>
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => exportFilteredCSV(filters)}
-            >
-              Export CSV
-            </Button>
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => exportFilteredJSON(filters)}
-            >
-              Export JSON
-            </Button>
-          </Stack>
-        </Stack>
-
-        <Divider sx={{ my: 2 }} />
-
-        <AdvancedFilters />
-      </Paper>
-
+    <>
       <Paper ref={parentRef} sx={{ height: "70vh", overflow: "auto" }}>
         <Box
           sx={{
@@ -97,9 +58,8 @@ export default function Vulnerabilities() {
         >
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
             const index = virtualRow.index;
-            void ensureRow(index); // opportunistic load
+            void ensureRow(index);
             const v = getRow(index);
-
             return (
               <Box
                 key={virtualRow.key}
@@ -126,6 +86,65 @@ export default function Vulnerabilities() {
           })}
         </Box>
       </Paper>
+
+      <CompareDrawer open={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
+export default function Vulnerabilities() {
+  const { filters } = useFilters();
+  return (
+    <Box>
+      <Typography variant="h5" gutterBottom>
+        Vulnerabilities
+      </Typography>
+
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          alignItems={{ xs: "stretch", md: "center" }}
+          justifyContent="space-between"
+        >
+          <FilterBar />
+          <FormControl size="small" sx={{ minWidth: 200 }}>
+            <InputLabel id="sort-label">Sort</InputLabel>
+            <Select
+              labelId="sort-label"
+              label="Sort"
+              value={"published-desc"}
+              readOnly
+            >
+              <MenuItem value="published-desc">Published (Newest)</MenuItem>
+              <MenuItem value="published-asc">Published (Oldest)</MenuItem>
+            </Select>
+          </FormControl>
+          <Stack direction="row" spacing={1}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => exportFilteredCSV(filters)}
+            >
+              Export CSV
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => exportFilteredJSON(filters)}
+            >
+              Export JSON
+            </Button>
+          </Stack>
+        </Stack>
+
+        <Divider sx={{ my: 2 }} />
+        <AdvancedFilters />
+      </Paper>
+
+      <SelectionProvider>
+        <ListArea />
+      </SelectionProvider>
     </Box>
   );
 }
