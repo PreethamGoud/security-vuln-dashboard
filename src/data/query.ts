@@ -85,8 +85,7 @@ export async function getTotalCount(
 }
 
 /**
- * Page retrieval using the `published` index.
- * - Keeping sort to an indexed key avoids scanning/sorting full table in memory.
+ * Page retrieval using the `published` index for fast sorting.
  */
 export async function getPage(
   filters: KaiStatusFilters,
@@ -99,7 +98,6 @@ export async function getPage(
   if (sort === "published-desc") coll = coll.reverse();
   return coll.filter(pred).offset(offset).limit(limit).toArray();
 }
-
 export type SeverityBucket = { severity: string; count: number };
 
 export async function getSeverityBuckets(
@@ -177,6 +175,56 @@ export async function getTrendByMonth(
 
 export async function getByCve(cve: string) {
   return db.vulnerabilities.get(cve);
+}
+
+/**
+ * Get unique package names for autocomplete suggestions
+ * Uses packageName index for fast lookup
+ */
+export async function getPackageSuggestions(query: string): Promise<string[]> {
+  if (!query || query.length < 2) return [];
+
+  const matches = new Set<string>();
+
+  await db.vulnerabilities
+    .where("packageName")
+    .startsWithIgnoreCase(query)
+    .limit(100)
+    .each((v) => {
+      if (v.packageName) {
+        matches.add(v.packageName);
+      }
+    });
+
+  return Array.from(matches).sort().slice(0, 20);
+}
+
+export type RiskFactorBucket = { factor: string; count: number };
+
+/**
+ * Aggregate risk factors across filtered vulnerabilities
+ */
+export async function getRiskFactorBuckets(
+  filters: KaiStatusFilters
+): Promise<RiskFactorBucket[]> {
+  const pred = buildKaiPredicate(filters);
+  const buckets = new Map<string, number>();
+
+  await db.vulnerabilities.filter(pred).each((v) => {
+    if (!v.riskFactors) return;
+
+    // Count each risk factor that has a truthy value
+    for (const [key, value] of Object.entries(v.riskFactors)) {
+      if (value) {
+        buckets.set(key, (buckets.get(key) || 0) + 1);
+      }
+    }
+  });
+
+  return Array.from(buckets.entries())
+    .map(([factor, count]) => ({ factor, count }))
+    .sort((a, b) => b.count - a.count) // Descending by count
+    .slice(0, 10); // Top 10 risk factors
 }
 
 /**

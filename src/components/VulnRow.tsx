@@ -1,4 +1,5 @@
 import { Box, Chip, Link, Stack, Typography, Checkbox } from "@mui/material";
+import { useNavigate } from "react-router-dom";
 import type { Vulnerability } from "../types/vuln";
 import { useSelection } from "../contexts/SelectionContext";
 
@@ -19,6 +20,7 @@ function severityColor(sev?: string) {
 
 export default function VulnRow({ v }: { v: Vulnerability }) {
   const { selected, toggle } = useSelection();
+  const navigate = useNavigate();
   const isSelected = selected.includes(v.cve);
 
   return (
@@ -30,12 +32,27 @@ export default function VulnRow({ v }: { v: Vulnerability }) {
         px: 2,
         py: 1.25,
         bgcolor: isSelected ? "action.hover" : "transparent",
+        cursor: "pointer",
+        "&:hover": { bgcolor: "action.hover" },
+      }}
+      onClick={(e) => {
+        // Don't navigate if clicking checkbox or links
+        if (
+          (e.target as HTMLElement).closest('input[type="checkbox"]') ||
+          (e.target as HTMLElement).closest("a")
+        ) {
+          return;
+        }
+        navigate(`/vulns/${v.cve}`);
       }}
     >
       <Checkbox
         size="small"
         checked={isSelected}
-        onChange={() => toggle(v.cve)}
+        onChange={(e) => {
+          e.stopPropagation();
+          toggle(v.cve);
+        }}
       />
       <Box sx={{ minWidth: 180 }}>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>

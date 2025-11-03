@@ -3,6 +3,7 @@ import PsychologyIcon from "@mui/icons-material/Psychology";
 import RuleIcon from "@mui/icons-material/Rule";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import { useFilters } from "../contexts/FiltersContext";
+import FilterPresets from "./FilterPresets";
 
 export default function FilterBar() {
   const { filters, setFilters, reset, activeFilterCount } = useFilters();
@@ -41,6 +42,8 @@ export default function FilterBar() {
           Reset
         </Button>
       </Tooltip>
+
+      <FilterPresets />
 
       {activeFilterCount > 0 && (
         <Chip

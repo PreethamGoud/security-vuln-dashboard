@@ -3,6 +3,7 @@ import {
   getSeverityBuckets,
   getTotals,
   getTrendByMonth,
+  getRiskFactorBuckets,
   type KaiStatusFilters,
 } from "../data/query";
 
@@ -40,5 +41,11 @@ export function useDashboardMetrics(filters: KaiStatusFilters) {
     staleTime: 5 * 60 * 1000,
   });
 
-  return { totals, severities, trend };
+  const riskFactors = useQuery({
+    queryKey: ["riskFactorBuckets", keySuffix],
+    queryFn: () => getRiskFactorBuckets(filters),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return { totals, severities, trend, riskFactors };
 }

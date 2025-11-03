@@ -20,11 +20,23 @@ import FilterBar from "../components/FilterBar";
 import { useDashboardMetrics } from "../hooks/useDashboardMetrics";
 import SeverityBarChart from "../components/SeverityBarChart";
 import TrendAreaChart from "../components/TrendAreaChart";
+import RiskFactorsChart from "../components/RiskFactorsChart";
+import CriticalCVEsCard from "../components/CriticalCVEsCard";
+import AIManualComparisonChart from "../components/AIManualComparisonChart";
 
 export default function Dashboard() {
   const [url, setUrl] = useState("/ui.json");
-  const { status, received, inserted, elapsedMs, error, loadFromUrl, cancel } =
-    useVulnLoader();
+  const {
+    status,
+    received,
+    skipped,
+    inserted,
+    elapsedMs,
+    completedAt,
+    error,
+    loadFromUrl,
+    cancel,
+  } = useVulnLoader();
 
   const canLoad = status === "idle" || status === "done" || status === "error";
   const canCancel = status === "loading";
@@ -35,6 +47,18 @@ export default function Dashboard() {
     const perSec = received / (elapsedMs / 1000);
     return `${perSec.toFixed(0)} items/sec`;
   }, [received, elapsedMs]);
+
+  // Format elapsed time
+  const formatElapsed = (ms: number) => {
+    if (ms < 1000) return `${ms}ms`;
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+    return `${seconds}s`;
+  };
 
   // Show existing DB count
   const [existingCount, setExistingCount] = useState<number>(0);
@@ -47,7 +71,8 @@ export default function Dashboard() {
   }, [status, inserted]);
 
   const { filters } = useFilters();
-  const { totals, severities, trend } = useDashboardMetrics(filters);
+  const { totals, severities, trend, riskFactors } =
+    useDashboardMetrics(filters);
 
   return (
     <Box>
@@ -90,7 +115,7 @@ export default function Dashboard() {
         </Stack>
       </Paper>
 
-      {/* Charts (bar + area) */}
+      {/* Charts (bar + area + risk factors) */}
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: 2, height: "100%" }}>
@@ -116,7 +141,38 @@ export default function Dashboard() {
             )}
           </Paper>
         </Grid>
+        <Grid size={{ xs: 12 }}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Top Risk Factors
+            </Typography>
+            {riskFactors.isLoading ? (
+              <Skeleton variant="rectangular" height={280} />
+            ) : (
+              <RiskFactorsChart data={riskFactors.data ?? []} />
+            )}
+          </Paper>
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <AIManualComparisonChart />
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          {/* Placeholder for future chart or metrics */}
+          <Paper sx={{ p: 2, minHeight: 380 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Additional Metrics
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              More visualizations and insights coming soon...
+            </Typography>
+          </Paper>
+        </Grid>
       </Grid>
+
+      {/* Critical CVEs Card */}
+      <Box sx={{ mb: 2 }}>
+        <CriticalCVEsCard filters={filters} limit={10} />
+      </Box>
 
       <Divider sx={{ my: 2 }} />
 
@@ -174,21 +230,56 @@ export default function Dashboard() {
         <Box sx={{ mt: 2 }}>
           {status === "loading" && <LinearProgress />}
           <Stack direction="row" spacing={3} sx={{ mt: 1 }} flexWrap="wrap">
-            <Typography variant="body2">Status: {status}</Typography>
-            <Typography variant="body2">
-              Received: {received.toLocaleString()}
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              Status: {status}
             </Typography>
+            <Typography variant="body2" color="primary">
+              Unique: {received.toLocaleString()}
+            </Typography>
+            {skipped > 0 && (
+              <Typography variant="body2" color="warning.main">
+                Skipped duplicates: {skipped.toLocaleString()}
+              </Typography>
+            )}
             <Typography variant="body2">
               Inserted: {inserted.toLocaleString()}
             </Typography>
-            {eta && <Typography variant="body2">Throughput: {eta}</Typography>}
+            {eta && (
+              <Typography variant="body2" color="primary">
+                Throughput: {eta}
+              </Typography>
+            )}
+            {elapsedMs > 0 && (
+              <Typography
+                variant="body2"
+                color={status === "done" ? "success.main" : "text.primary"}
+                sx={{ fontWeight: status === "done" ? 600 : 400 }}
+              >
+                {status === "done" ? "Completed in: " : "Elapsed: "}
+                {formatElapsed(elapsedMs)}
+              </Typography>
+            )}
             <Typography variant="body2">
               Existing in DB: {existingCount.toLocaleString()}
             </Typography>
           </Stack>
+          {status === "done" && completedAt && (
+            <Alert severity="success" sx={{ mt: 2 }}>
+              Successfully loaded {inserted.toLocaleString()} unique
+              vulnerabilities in {formatElapsed(elapsedMs)}
+              {skipped > 0 &&
+                ` (skipped ${skipped.toLocaleString()} duplicates)`}
+              {eta && ` - avg ${eta}`}
+            </Alert>
+          )}
           {error && (
             <Alert severity="error" sx={{ mt: 2 }}>
-              {error}
+              Error: {error}
+              <br />
+              <Typography variant="caption" component="div" sx={{ mt: 1 }}>
+                Note: If data was inserted successfully, you can ignore this
+                error. Check browser console for details.
+              </Typography>
             </Alert>
           )}
         </Box>

@@ -27,12 +27,14 @@ type MsgIn = LoadMsg | CancelMsg;
 
 type MsgOut =
   | { type: "item"; item: any } // a single vulnerability element
-  | { type: "progress"; items: number } // periodic progress (throttled)
-  | { type: "done"; items: number } // stream completed
+  | { type: "progress"; items: number; skipped: number } // periodic progress (throttled)
+  | { type: "done"; items: number; skipped: number } // stream completed
   | { type: "error"; error: string }; // stream failed
 
 let currentRequest: any | null = null;
 let seen = 0;
+let skipped = 0;
+const seenCves = new Set<string>(); // Deduplication tracker
 
 function post(out: MsgOut) {
   // @ts-ignore — web worker global
@@ -52,53 +54,90 @@ onmessage = async (e: MessageEvent<MsgIn>) => {
       }
       currentRequest = null;
     }
+    seenCves.clear();
     return;
   }
 
   if (data.type === "load") {
     const { url } = data;
     seen = 0;
+    skipped = 0;
+    seenCves.clear();
 
     try {
-      const oboe = await loadOboe();
+      // Fetch entire JSON file in one go (faster than streaming for dedup scenarios)
+      post({ type: "progress", items: 0, skipped: 0 });
 
-      /**
-       * Path selector notes:
-       *  - Our JSON structure is deep: root.groups.*.repos.*.images.*.vulnerabilities.*
-       *  - The selector below matches every element in any `vulnerabilities` array under that path
-       *  - `oboe.drop` tells oboe not to retain matched nodes (reduces memory)
-       */
-      currentRequest = oboe({ url, cached: false })
-        .node("!.groups.*.repos.*.images.*.vulnerabilities.*", (vuln: any) => {
-          seen++;
-          post({ type: "item", item: vuln });
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
-          // Throttle progress messages to avoid flooding postMessage
-          if (seen % 500 === 0) {
-            post({ type: "progress", items: seen });
+      // Read entire JSON into memory
+      const text = await response.text();
+      post({ type: "progress", items: 0, skipped: 0 }); // Downloaded
+
+      // Parse JSON
+      const jsonData = JSON.parse(text);
+      post({ type: "progress", items: 0, skipped: 0 }); // Parsed
+
+      // Extract all vulnerabilities from nested structure
+      const allVulns: any[] = [];
+      if (jsonData.groups) {
+        for (const group of Object.values(jsonData.groups || {})) {
+          const g = group as any;
+          if (g.repos) {
+            for (const repo of Object.values(g.repos || {})) {
+              const r = repo as any;
+              if (r.images) {
+                for (const image of Object.values(r.images || {})) {
+                  const img = image as any;
+                  if (
+                    img.vulnerabilities &&
+                    Array.isArray(img.vulnerabilities)
+                  ) {
+                    allVulns.push(...img.vulnerabilities);
+                  }
+                }
+              }
+            }
           }
+        }
+      }
 
-          return oboe.drop;
-        })
-        .done(() => {
-          post({ type: "done", items: seen });
-          currentRequest = null;
-        })
-        .fail((err: any) => {
-          post({
-            type: "error",
-            error:
-              (err &&
-                (err.thrown ||
-                  err.jsonBody ||
-                  err.statusCode ||
-                  err.toString?.())) ||
-              "Unknown error",
-          });
-          currentRequest = null;
-        });
+      post({ type: "progress", items: 0, skipped: allVulns.length });
+
+      // Deduplicate in memory using Map (preserves first occurrence)
+      const uniqueMap = new Map<string, any>();
+      let dupCount = 0;
+
+      for (const vuln of allVulns) {
+        if (vuln.cve) {
+          if (uniqueMap.has(vuln.cve)) {
+            dupCount++;
+          } else {
+            uniqueMap.set(vuln.cve, vuln);
+          }
+        }
+      }
+
+      const uniqueVulns = Array.from(uniqueMap.values());
+      seen = uniqueVulns.length;
+      skipped = dupCount;
+
+      post({ type: "progress", items: seen, skipped });
+
+      // Send unique records in batches
+      const BATCH_SIZE = 500;
+      for (let i = 0; i < uniqueVulns.length; i += BATCH_SIZE) {
+        const batch = uniqueVulns.slice(i, i + BATCH_SIZE);
+        post({ type: "item", item: batch });
+      }
+
+      post({ type: "done", items: seen, skipped });
+      currentRequest = null;
     } catch (err: any) {
-      post({ type: "error", error: err?.message || "Worker failed to start" });
+      post({ type: "error", error: err?.message || "Worker failed to load" });
       currentRequest = null;
     }
   }

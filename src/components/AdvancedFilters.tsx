@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import {
   Box,
   Stack,
@@ -9,8 +10,10 @@ import {
   Checkbox,
   ListItemText,
   OutlinedInput,
+  Autocomplete,
 } from "@mui/material";
 import { useFilters } from "../contexts/FiltersContext";
+import { getPackageSuggestions } from "../data/query";
 
 const ALL_SEVERITIES = ["critical", "high", "medium", "low", "unknown"];
 
@@ -20,6 +23,27 @@ const ALL_SEVERITIES = ["critical", "high", "medium", "low", "unknown"];
  */
 export default function AdvancedFilters() {
   const { filters, setFilters } = useFilters();
+  const [packageOptions, setPackageOptions] = useState<string[]>([]);
+  const [packageInputValue, setPackageInputValue] = useState("");
+
+  // Fetch package suggestions as user types
+  useEffect(() => {
+    let alive = true;
+    if (packageInputValue.length < 2) {
+      setPackageOptions([]);
+      return;
+    }
+
+    (async () => {
+      const suggestions = await getPackageSuggestions(packageInputValue);
+      if (!alive) return;
+      setPackageOptions(suggestions);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [packageInputValue]);
 
   return (
     <Box>
@@ -50,13 +74,20 @@ export default function AdvancedFilters() {
           </Select>
         </FormControl>
 
-        <TextField
+        <Autocomplete
+          freeSolo
           size="small"
-          label="Package contains"
+          options={packageOptions}
           value={filters.packageQuery}
-          onChange={(e) =>
-            setFilters((f) => ({ ...f, packageQuery: e.target.value }))
-          }
+          inputValue={packageInputValue}
+          onInputChange={(_, newValue) => setPackageInputValue(newValue)}
+          onChange={(_, newValue) => {
+            setFilters((f) => ({ ...f, packageQuery: newValue || "" }));
+          }}
+          renderInput={(params) => (
+            <TextField {...params} label="Package contains" />
+          )}
+          sx={{ minWidth: 220 }}
         />
 
         <TextField
